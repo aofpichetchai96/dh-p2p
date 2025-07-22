@@ -50,6 +50,7 @@ def main(serial, dtype=0, username=None, password=None, debug=False):
 
     p2psrv_remote = UDP(p2psrv_server, p2psrv_port, debug)
     res = p2psrv_remote.request(f"/probe/device/{serial}")
+    res = p2psrv_remote.request(f"/info/device/{serial}")
     p2psrv_remote.close()
 
     res = main_remote.request("/online/relay")

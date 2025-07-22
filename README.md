@@ -150,6 +150,9 @@ sequenceDiagram
   A->>C1: /probe/device/{SN}
   C1-->>A: ;
 
+  A->>C1: /info/device/{SN}
+  C1-->>A: [randsalt]
+
   A->>B: /online/relay
   B-->>A: relay info
 

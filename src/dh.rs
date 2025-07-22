@@ -60,6 +60,18 @@ pub async fn p2p_handshake(
         .await;
     socket2.dh_read().await;
 
+    /*
+    TODO add support for device info request
+    socket2
+        .dh_request(
+            format!("/info/device/{}", serial).as_ref(),
+            None,
+            &mut cseq,
+        )
+        .await;
+    socket2.dh_read().await;
+    */
+
     let cid: [u8; 8] = rand::random();
 
     socket
