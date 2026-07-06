@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera-P2P Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+
+    /* Login */
+    #login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-box {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 40px; width: 360px;
+    }
+    .login-box h1 { font-size: 20px; margin-bottom: 24px; text-align: center; color: #58a6ff; }
+    .error-msg { color: #f85149; font-size: 13px; margin-bottom: 10px; min-height: 18px; }
+
+    /* App */
+    #app-page { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #21262d;
+    }
+    .header h1 { color: #58a6ff; font-size: 22px; }
+
+    /* Inputs */
+    input, select {
+      width: 100%; padding: 9px 12px; background: #0d1117; border: 1px solid #30363d;
+      border-radius: 6px; color: #c9d1d9; font-size: 14px; margin-bottom: 12px;
+    }
+    input:focus, select:focus { outline: none; border-color: #58a6ff; }
+    label { font-size: 12px; color: #8b949e; display: block; margin-bottom: 4px; }
+
+    /* Buttons */
+    button {
+      padding: 8px 16px; border-radius: 6px; border: none;
+      cursor: pointer; font-size: 14px; font-weight: 500; transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    .btn-primary { background: #238636; color: white; }
+    .btn-danger  { background: #da3633; color: white; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-blue   { background: #1f6feb; color: white; }
+    .btn-sm     { padding: 4px 10px; font-size: 12px; }
+    .btn-full   { width: 100%; padding: 10px; }
+
+    /* Table */
+    .table-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: #21262d; padding: 12px 16px; text-align: left;
+      font-size: 12px; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+    }
+    td { padding: 12px 16px; border-top: 1px solid #21262d; font-size: 14px; vertical-align: middle; }
+    tr:hover td { background: #1c2128; }
+
+    /* Status badges */
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+    .badge-running  { background: #0d4429; color: #3fb950; }
+    .badge-starting { background: #341a00; color: #e3b341; }
+    .badge-stopped  { background: #21262d; color: #8b949e; }
+    .badge-error    { background: #3d1a1a; color: #f85149; }
+
+    /* Modal */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.75); align-items: center; justify-content: center; z-index: 100;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 32px; width: 500px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h2 { margin-bottom: 20px; font-size: 18px; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* RTSP */
+    .rtsp-url {
+      font-family: monospace; font-size: 11px; color: #58a6ff;
+      background: #0d1117; padding: 3px 7px; border-radius: 4px;
+      cursor: pointer; max-width: 260px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; display: inline-block;
+      border: 1px solid #21262d;
+    }
+    .rtsp-url:hover { color: #79c0ff; border-color: #388bfd; }
+
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .empty-row td { text-align: center; color: #8b949e; padding: 40px; }
+    code { font-size: 12px; color: #8b949e; font-family: monospace; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #21262d; }
+    .tab {
+      padding: 8px 18px; cursor: pointer; font-size: 14px; color: #8b949e;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Token value */
+    .token-val {
+      font-family: monospace; font-size: 12px; color: #3fb950;
+      background: #0d1117; padding: 3px 8px; border-radius: 4px;
+      border: 1px solid #21262d; cursor: pointer; display: inline-block;
+    }
+    .token-val:hover { border-color: #3fb950; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; background: #238636;
+      color: white; padding: 10px 18px; border-radius: 6px; font-size: 14px;
+      display: none; z-index: 200;
+    }
+    .toast.show { display: block; }
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-page">
+  <div class="login-box">
+    <h1>Camera-P2P Manager</h1>
+    <div id="login-error" class="error-msg"></div>
+    <form id="login-form">
+      <label>Username</label>
+      <input type="text" id="login-user" required autofocus>
+      <label>Password</label>
+      <input type="password" id="login-pass" required>
+      <button type="submit" class="btn-primary btn-full">Login</button>
+    </form>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app-page">
+  <div class="header">
+    <h1>Camera-P2P Manager</h1>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-primary" id="btn-add" onclick="handleAdd()">+ Add Camera</button>
+      <button class="btn-secondary" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('cameras')">Cameras</div>
+    <div class="tab" onclick="switchTab('brands')">Brands</div>
+    <div class="tab" onclick="switchTab('tokens')">API Tokens</div>
+  </div>
+
+  <!-- Cameras tab -->
+  <div id="tab-cameras" class="tab-content active">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Brand</th>
+            <th>Serial</th>
+            <th>Local Port</th>
+            <th>Auto-start</th>
+            <th>Status</th>
+            <th>RTSP URL</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="cam-tbody">
+          <tr class="empty-row"><td colspan="8">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Brands tab -->
+  <div id="tab-brands" class="tab-content">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Main Server (Cloud)</th>
+            <th>App Username</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="brand-tbody">
+          <tr class="empty-row"><td colspan="4">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tokens tab -->
+  <div id="tab-tokens" class="tab-content">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Token</th>
+            <th>Expires At</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tok-tbody">
+          <tr class="empty-row"><td colspan="5">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Camera -->
+<div class="overlay" id="modal-overlay" onclick="onOverlayClick(event)">
+  <div class="modal">
+    <h2 id="modal-title">Add Camera</h2>
+    <input type="hidden" id="cam-id">
+
+    <label>Camera Name</label>
+    <input type="text" id="cam-name" placeholder="เช่น กล้องหน้าบ้าน">
+
+    <label>Brand</label>
+    <select id="cam-brand"></select>
+    <div id="cam-brand-hint" style="font-size:12px; color:#e3b341; margin:-8px 0 12px;"></div>
+
+    <label>Serial Number</label>
+    <input type="text" id="cam-serial" placeholder="เช่น ABC1234567890">
+
+    <div class="form-row">
+      <div>
+        <label>Camera Username</label>
+        <input type="text" id="cam-user" placeholder="admin">
+      </div>
+      <div>
+        <label>Camera Password</label>
+        <input type="text" id="cam-pass" placeholder="password">
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top:4px;">
+      <div>
+        <label>Camera RTSP Port</label>
+        <input type="number" id="cam-port" value="554">
+      </div>
+      <div>
+        <label>Local Port (tunnel)</label>
+        <input type="number" id="cam-local-port" placeholder="1554">
+      </div>
+    </div>
+
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:16px;">
+      <input type="checkbox" id="cam-auto-start" style="width:auto; margin:0;">
+      <span style="font-size:14px; color:#c9d1d9;">Auto-start เมื่อเปิดโปรแกรม</span>
+    </label>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveCamera()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Token -->
+<div class="overlay" id="tok-modal-overlay" onclick="if(event.target===this)closeTokModal()">
+  <div class="modal">
+    <h2 id="tok-modal-title">Add API Token</h2>
+    <input type="hidden" id="tok-id">
+
+    <label>Token Name</label>
+    <input type="text" id="tok-name" placeholder="เช่น My App, Dashboard">
+
+    <label>Expires At (ว่างเปล่า = ไม่หมดอายุ)</label>
+    <input type="datetime-local" id="tok-expires">
+
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:16px;">
+      <input type="checkbox" id="tok-enabled" style="width:auto; margin:0;" checked>
+      <span style="font-size:14px; color:#c9d1d9;">เปิดใช้งาน</span>
+    </label>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeTokModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveToken()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Brand -->
+<div class="overlay" id="brand-modal-overlay" onclick="if(event.target===this)closeBrandModal()">
+  <div class="modal">
+    <h2 id="brand-modal-title">Add Brand</h2>
+    <input type="hidden" id="brand-id">
+
+    <label>Brand Name</label>
+    <input type="text" id="brand-name" placeholder="เช่น Dahua, KBVision">
+
+    <label>Main Server (Cloud)</label>
+    <input type="text" id="brand-server" placeholder="www.easy4ipcloud.com:8800">
+
+    <div class="form-row">
+      <div>
+        <label>App Username</label>
+        <input type="text" id="brand-app-user">
+      </div>
+      <div>
+        <label>App Userkey</label>
+        <input type="text" id="brand-app-key">
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeBrandModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveBrand()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let token = localStorage.getItem('dhp2p_token');
+let cameras = [];
+let tunnels = {};
+let brands = [];
+let refreshTimer;
+
+// Init
+if (token) showApp(); else showLogin();
+
+/* ─── Auth ─── */
+
+function showLogin() {
+  document.getElementById('login-page').style.display = 'flex';
+  document.getElementById('app-page').style.display = 'none';
+  clearInterval(refreshTimer);
+}
+
+function showApp() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('app-page').style.display = 'block';
+  loadAll();
+  refreshTimer = setInterval(loadTunnels, 5000);
+}
+
+function logout() {
+  localStorage.removeItem('dhp2p_token');
+  token = null;
+  showLogin();
+}
+
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = document.getElementById('login-user').value;
+  const password = document.getElementById('login-pass').value;
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      token = data.token;
+      localStorage.setItem('dhp2p_token', token);
+      document.getElementById('login-error').textContent = '';
+      showApp();
+    } else {
+      document.getElementById('login-error').textContent = 'Username หรือ Password ไม่ถูกต้อง';
+    }
+  } catch {
+    document.getElementById('login-error').textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
+  }
+});
+
+/* ─── API ─── */
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + token,
+      ...(opts.headers || {}),
+    },
+  });
+  if (res.status === 401) { logout(); return null; }
+  return res;
+}
+
+/* ─── Data ─── */
+
+async function loadAll() {
+  await Promise.all([loadCameras(), loadTunnels(), loadBrands()]);
+  render();
+}
+
+async function loadCameras() {
+  const res = await api('/cameras');
+  if (res && res.ok) cameras = await res.json();
+}
+
+async function loadTunnels() {
+  const res = await api('/tunnels');
+  if (res && res.ok) {
+    const list = await res.json();
+    tunnels = {};
+    list.forEach(t => tunnels[t.id] = t);
+    render();
+  }
+}
+
+/* ─── Render ─── */
+
+function badgeHtml(id) {
+  const t = tunnels[id];
+  if (!t || t.status === 'stopped') return '<span class="badge badge-stopped">Stopped</span>';
+  if (t.status === 'starting') return '<span class="badge badge-starting">Starting...</span>';
+  if (t.status === 'running')  return '<span class="badge badge-running">Running</span>';
+  return `<span class="badge badge-error" title="${t.status}">Error</span>`;
+}
+
+function rtspHtml(id) {
+  const t = tunnels[id];
+  if (t && t.rtsp_url) {
+    return `<span class="rtsp-url" title="Click to copy" onclick="copy('${t.rtsp_url}')">${t.rtsp_url}</span>`;
+  }
+  return '<span style="color:#8b949e;">-</span>';
+}
+
+function actionsHtml(cam) {
+  const t = tunnels[cam.id];
+  const active = t && (t.status === 'running' || t.status === 'starting');
+  const startStop = active
+    ? `<button class="btn-danger btn-sm" onclick="stopTunnel('${cam.id}')">Stop</button>`
+    : `<button class="btn-blue btn-sm" onclick="startTunnel('${cam.id}')">Start</button>`;
+  return `<div class="actions">
+    ${startStop}
+    <button class="btn-secondary btn-sm" onclick="openModal('${cam.id}')">Edit</button>
+    <button class="btn-danger btn-sm" onclick="deleteCamera('${cam.id}')">Delete</button>
+  </div>`;
+}
+
+function render() {
+  const tbody = document.getElementById('cam-tbody');
+  if (!cameras.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">ยังไม่มีกล้อง กด "+ Add Camera" เพื่อเพิ่ม</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cameras.map(cam => `
+    <tr>
+      <td><strong>${cam.name}</strong></td>
+      <td>${cam.brand}</td>
+      <td><code>${cam.serial}</code></td>
+      <td>${cam.local_port}</td>
+      <td style="text-align:center;">${cam.auto_start ? '✅' : '—'}</td>
+      <td>${badgeHtml(cam.id)}</td>
+      <td>${rtspHtml(cam.id)}</td>
+      <td>${actionsHtml(cam)}</td>
+    </tr>`).join('');
+}
+
+/* ─── Tunnel control ─── */
+
+async function startTunnel(id) {
+  await api(`/cameras/${id}/start`, { method: 'POST' });
+  setTimeout(loadTunnels, 800);
+}
+
+async function stopTunnel(id) {
+  await api(`/cameras/${id}/stop`, { method: 'POST' });
+  setTimeout(loadTunnels, 400);
+}
+
+/* ─── Camera CRUD ─── */
+
+async function deleteCamera(id) {
+  if (!confirm('ลบกล้องนี้?')) return;
+  await api(`/cameras/${id}`, { method: 'DELETE' });
+  cameras = cameras.filter(c => c.id !== id);
+  render();
+}
+
+/* ─── Modal ─── */
+
+function populateBrandSelect(selectedName) {
+  const sel = document.getElementById('cam-brand');
+  const hint = document.getElementById('cam-brand-hint');
+
+  if (!brands.length) {
+    sel.innerHTML = selectedName
+      ? `<option value="${selectedName}">${selectedName} (ไม่พบใน Brands)</option>`
+      : '<option value="">-- ยังไม่มี Brand --</option>';
+    hint.textContent = 'ยังไม่มี Brand ในระบบ กรุณาไปสร้างที่แท็บ "Brands" ก่อน';
+    return;
+  }
+
+  hint.textContent = '';
+  let options = brands.map(b => `<option value="${b.name}">${b.name}</option>`).join('');
+  if (selectedName && !brands.some(b => b.name === selectedName)) {
+    options = `<option value="${selectedName}">${selectedName} (ไม่พบใน Brands)</option>` + options;
+  }
+  sel.innerHTML = options;
+  if (selectedName) sel.value = selectedName;
+}
+
+function openModal(id = null) {
+  document.getElementById('modal-overlay').classList.add('open');
+  if (id) {
+    const cam = cameras.find(c => c.id === id);
+    document.getElementById('modal-title').textContent = 'Edit Camera';
+    document.getElementById('cam-id').value = cam.id;
+    document.getElementById('cam-name').value = cam.name;
+    populateBrandSelect(cam.brand);
+    document.getElementById('cam-serial').value = cam.serial;
+    document.getElementById('cam-user').value = cam.username;
+    document.getElementById('cam-pass').value = cam.password;
+    document.getElementById('cam-port').value = cam.port;
+    document.getElementById('cam-local-port').value = cam.local_port;
+    document.getElementById('cam-auto-start').checked = cam.auto_start;
+  } else {
+    document.getElementById('modal-title').textContent = 'Add Camera';
+    document.getElementById('cam-id').value = '';
+    document.getElementById('cam-name').value = '';
+    populateBrandSelect(brands.length ? brands[0].name : null);
+    document.getElementById('cam-serial').value = '';
+    document.getElementById('cam-user').value = 'admin';
+    document.getElementById('cam-pass').value = '';
+    document.getElementById('cam-port').value = '554';
+    document.getElementById('cam-local-port').value = 1554 + cameras.length;
+    document.getElementById('cam-auto-start').checked = false;
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function onOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+async function saveCamera() {
+  const id = document.getElementById('cam-id').value;
+  const body = {
+    name: document.getElementById('cam-name').value.trim(),
+    brand: document.getElementById('cam-brand').value.trim(),
+    serial: document.getElementById('cam-serial').value.trim(),
+    username: document.getElementById('cam-user').value.trim(),
+    password: document.getElementById('cam-pass').value,
+    port: parseInt(document.getElementById('cam-port').value),
+    local_port: parseInt(document.getElementById('cam-local-port').value),
+    auto_start: document.getElementById('cam-auto-start').checked,
+  };
+
+  if (!body.name || !body.serial) { alert('กรุณากรอก Name และ Serial'); return; }
+  if (!body.brand) { alert('กรุณาเลือก Brand (ถ้ายังไม่มี ให้ไปสร้างที่แท็บ "Brands" ก่อน)'); return; }
+
+  if (id) {
+    const res = await api(`/cameras/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (res && res.ok) {
+      const updated = await res.json();
+      cameras = cameras.map(c => c.id === id ? updated : c);
+    }
+  } else {
+    const res = await api('/cameras', { method: 'POST', body: JSON.stringify(body) });
+    if (res && res.ok) cameras.push(await res.json());
+  }
+
+  closeModal();
+  render();
+}
+
+/* ─── Tabs ─── */
+
+let activeTab = 'cameras';
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['cameras','brands','tokens'][i] === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('btn-add').textContent =
+    tab === 'cameras' ? '+ Add Camera' : tab === 'brands' ? '+ Add Brand' : '+ Add Token';
+  if (tab === 'tokens') loadTokens();
+  if (tab === 'brands') loadBrands().then(renderBrands);
+}
+
+function handleAdd() {
+  if (activeTab === 'cameras') openModal();
+  else if (activeTab === 'brands') openBrandModal();
+  else openTokModal();
+}
+
+/* ─── Token API ─── */
+
+let apiTokens = [];
+
+async function loadTokens() {
+  const res = await api('/tokens');
+  if (res && res.ok) { apiTokens = await res.json(); renderTokens(); }
+}
+
+function renderTokens() {
+  const tbody = document.getElementById('tok-tbody');
+  if (!apiTokens.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">ยังไม่มี Token กด "+ Add Token" เพื่อสร้าง</td></tr>';
+    return;
+  }
+  const now = new Date();
+  tbody.innerHTML = apiTokens.map(t => {
+    const expired = t.expires_at && new Date(t.expires_at) < now;
+    const statusBadge = !t.enabled
+      ? '<span class="badge badge-stopped">Disabled</span>'
+      : expired
+        ? '<span class="badge badge-error">Expired</span>'
+        : '<span class="badge badge-running">Active</span>';
+    const exp = t.expires_at ? new Date(t.expires_at).toLocaleString('th-TH') : '—';
+    const masked = t.token.slice(0, 12) + '••••••••••••';
+    return `<tr>
+      <td><strong>${t.name}</strong></td>
+      <td><span class="token-val" onclick="copy('${t.token}')" title="Click to copy">${masked}</span></td>
+      <td>${exp}</td>
+      <td>${statusBadge}</td>
+      <td><div class="actions">
+        <button class="btn-secondary btn-sm" onclick="openTokModal('${t.id}')">${t.enabled ? 'Disable' : 'Enable'} / Edit</button>
+        <button class="btn-danger btn-sm" onclick="deleteToken('${t.id}')">Delete</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function openTokModal(id = null) {
+  document.getElementById('tok-modal-overlay').classList.add('open');
+  if (id) {
+    const t = apiTokens.find(t => t.id === id);
+    document.getElementById('tok-modal-title').textContent = 'Edit Token';
+    document.getElementById('tok-id').value = t.id;
+    document.getElementById('tok-name').value = t.name;
+    document.getElementById('tok-expires').value = t.expires_at ? t.expires_at.slice(0, 16) : '';
+    document.getElementById('tok-enabled').checked = t.enabled;
+  } else {
+    document.getElementById('tok-modal-title').textContent = 'Add API Token';
+    document.getElementById('tok-id').value = '';
+    document.getElementById('tok-name').value = '';
+    document.getElementById('tok-expires').value = '';
+    document.getElementById('tok-enabled').checked = true;
+  }
+}
+
+function closeTokModal() {
+  document.getElementById('tok-modal-overlay').classList.remove('open');
+}
+
+async function saveToken() {
+  const id = document.getElementById('tok-id').value;
+  const expiresRaw = document.getElementById('tok-expires').value;
+  const body = {
+    name: document.getElementById('tok-name').value.trim(),
+    expires_at: expiresRaw ? new Date(expiresRaw).toISOString() : null,
+    enabled: document.getElementById('tok-enabled').checked,
+  };
+  if (!body.name) { alert('กรุณากรอกชื่อ Token'); return; }
+
+  let res;
+  if (id) {
+    res = await api(`/tokens/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (res && res.ok) {
+      const updated = await res.json();
+      apiTokens = apiTokens.map(t => t.id === id ? updated : t);
+    }
+  } else {
+    res = await api('/tokens', { method: 'POST', body: JSON.stringify(body) });
+    if (res && res.ok) {
+      const created = await res.json();
+      apiTokens.push(created);
+      copy(created.token);
+      toast('Token สร้างแล้ว — คัดลอกไปยัง clipboard แล้ว!');
+    }
+  }
+  closeTokModal();
+  renderTokens();
+}
+
+async function deleteToken(id) {
+  if (!confirm('ลบ Token นี้?')) return;
+  await api(`/tokens/${id}`, { method: 'DELETE' });
+  apiTokens = apiTokens.filter(t => t.id !== id);
+  renderTokens();
+}
+
+/* ─── Brand CRUD ─── */
+
+async function loadBrands() {
+  const res = await api('/brands');
+  if (res && res.ok) brands = await res.json();
+}
+
+function renderBrands() {
+  const tbody = document.getElementById('brand-tbody');
+  if (!brands.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">ยังไม่มี Brand กด "+ Add Brand" เพื่อเพิ่ม</td></tr>';
+    return;
+  }
+  tbody.innerHTML = brands.map(b => `
+    <tr>
+      <td><strong>${b.name}</strong></td>
+      <td><code>${b.main_server}</code></td>
+      <td><code>${b.app_username}</code></td>
+      <td><div class="actions">
+        <button class="btn-secondary btn-sm" onclick="openBrandModal('${b.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="deleteBrand('${b.id}')">Delete</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function openBrandModal(id = null) {
+  document.getElementById('brand-modal-overlay').classList.add('open');
+  if (id) {
+    const b = brands.find(b => b.id === id);
+    document.getElementById('brand-modal-title').textContent = 'Edit Brand';
+    document.getElementById('brand-id').value = b.id;
+    document.getElementById('brand-name').value = b.name;
+    document.getElementById('brand-server').value = b.main_server;
+    document.getElementById('brand-app-user').value = b.app_username;
+    document.getElementById('brand-app-key').value = b.app_userkey;
+  } else {
+    document.getElementById('brand-modal-title').textContent = 'Add Brand';
+    document.getElementById('brand-id').value = '';
+    document.getElementById('brand-name').value = '';
+    document.getElementById('brand-server').value = 'www.easy4ipcloud.com:8800';
+    document.getElementById('brand-app-user').value = '';
+    document.getElementById('brand-app-key').value = '';
+  }
+}
+
+function closeBrandModal() {
+  document.getElementById('brand-modal-overlay').classList.remove('open');
+}
+
+async function saveBrand() {
+  const id = document.getElementById('brand-id').value;
+  const body = {
+    name: document.getElementById('brand-name').value.trim(),
+    main_server: document.getElementById('brand-server').value.trim(),
+    app_username: document.getElementById('brand-app-user').value.trim(),
+    app_userkey: document.getElementById('brand-app-key').value.trim(),
+  };
+
+  if (!body.name || !body.main_server || !body.app_username || !body.app_userkey) {
+    alert('กรุณากรอกข้อมูล Brand ให้ครบ');
+    return;
+  }
+
+  let res;
+  if (id) {
+    res = await api(`/brands/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (res && res.ok) {
+      const updated = await res.json();
+      brands = brands.map(b => b.id === id ? updated : b);
+    }
+  } else {
+    res = await api('/brands', { method: 'POST', body: JSON.stringify(body) });
+    if (res && res.ok) brands.push(await res.json());
+  }
+
+  closeBrandModal();
+  renderBrands();
+}
+
+async function deleteBrand(id) {
+  const inUse = cameras.filter(c => c.brand === brands.find(b => b.id === id)?.name).length;
+  const msg = inUse
+    ? `มีกล้อง ${inUse} ตัวใช้ Brand นี้อยู่ ถ้าลบแล้ว tunnel ของกล้องเหล่านั้นจะเริ่มไม่ได้ ลบต่อไหม?`
+    : 'ลบ Brand นี้?';
+  if (!confirm(msg)) return;
+  await api(`/brands/${id}`, { method: 'DELETE' });
+  brands = brands.filter(b => b.id !== id);
+  renderBrands();
+}
+
+/* ─── Utilities ─── */
+
+function copy(text) {
+  navigator.clipboard.writeText(text).then(() => toast('Copied!'));
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+</script>
+</body>
+</html>

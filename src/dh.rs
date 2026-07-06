@@ -7,10 +7,6 @@ use xml::reader::{EventReader, XmlEvent};
 
 use crate::ptcp::{PTCPBody, PTCPSession, PTCP};
 
-static MAIN_SERVER: &str = "www.easy4ipcloud.com:8800";
-
-static USERNAME: &str = "cba1b29e32cb17aa46b8ff9e73c7f40b";
-static USERKEY: &str = "996103384cdf19179e19243e959bbf8b";
 
 fn ip_to_bytes(ip: &str) -> Vec<u8> {
     let addr: SocketAddrV4 = ip.parse().unwrap();
@@ -28,12 +24,15 @@ pub async fn p2p_handshake(
     socket: UdpSocket,
     serial: String,
     relay_mode: bool,
+    main_server: &str,
+    app_username: &str,
+    app_userkey: &str,
 ) -> (UdpSocket, PTCPSession) {
     let mut cseq = 0;
 
-    socket.connect(MAIN_SERVER).await.unwrap();
+    socket.connect(main_server).await.unwrap();
 
-    socket.dh_request("/probe/p2psrv", None, &mut cseq).await;
+    socket.dh_request("/probe/p2psrv", None, &mut cseq, app_username, app_userkey).await;
     socket.dh_read().await;
 
     socket
@@ -41,11 +40,13 @@ pub async fn p2p_handshake(
             format!("/online/p2psrv/{}", serial).as_ref(),
             None,
             &mut cseq,
+            app_username,
+            app_userkey,
         )
         .await;
     let p2psrv = &socket.dh_read().await.body.unwrap()["body/US"];
 
-    socket.dh_request("/online/relay", None, &mut cseq).await;
+    socket.dh_request("/online/relay", None, &mut cseq, app_username, app_userkey).await;
     let relay = &socket.dh_read().await.body.unwrap()["body/Address"];
 
     let socket2 = UdpSocket::bind("0.0.0.0:0").await.unwrap();
@@ -56,6 +57,8 @@ pub async fn p2p_handshake(
             format!("/probe/device/{}", serial).as_ref(),
             None,
             &mut cseq,
+            app_username,
+            app_userkey,
         )
         .await;
     socket2.dh_read().await;
@@ -83,12 +86,14 @@ pub async fn p2p_handshake(
                 socket.local_addr().unwrap().port(),
             ).as_ref()),
             &mut cseq,
+            app_username,
+            app_userkey,
         )
         .await;
 
     socket2.connect(relay).await.unwrap();
 
-    socket2.dh_request("/relay/agent", None, &mut cseq).await;
+    socket2.dh_request("/relay/agent", None, &mut cseq, app_username, app_userkey).await;
     let data = socket2.dh_read().await.body.unwrap();
     let token = &data["body/Token"];
     let agent = &data["body/Agent"];
@@ -100,6 +105,8 @@ pub async fn p2p_handshake(
             format!("/relay/start/{}", token).as_ref(),
             Some("<body><Client>:0</Client></body>"),
             &mut cseq,
+            app_username,
+            app_userkey,
         )
         .await;
     socket2.dh_read().await;
@@ -126,13 +133,15 @@ pub async fn p2p_handshake(
     // not necessary when relay_mode is true, but UDP is connectionless
     socket.connect(device).await.unwrap();
 
-    socket2.connect(MAIN_SERVER).await.unwrap();
+    socket2.connect(main_server).await.unwrap();
 
     socket2
         .dh_request(
             format!("/device/{}/relay-channel", serial).as_ref(),
             Some(format!("<body><agentAddr>{}</agentAddr></body>", agent).as_ref()),
             &mut cseq,
+            app_username,
+            app_userkey,
         )
         .await;
 
@@ -378,7 +387,7 @@ impl DHResponse {
 
 #[async_trait]
 trait DHP2P {
-    async fn dh_request(&self, path: &str, body: Option<&str>, seq: &mut u32);
+    async fn dh_request(&self, path: &str, body: Option<&str>, seq: &mut u32, username: &str, userkey: &str);
     async fn dh_read_raw(&self) -> DHResponse;
 
     async fn dh_read(&self) -> DHResponse {
@@ -392,7 +401,7 @@ trait DHP2P {
 
 #[async_trait]
 impl DHP2P for UdpSocket {
-    async fn dh_request(&self, path: &str, body: Option<&str>, seq: &mut u32) {
+    async fn dh_request(&self, path: &str, body: Option<&str>, seq: &mut u32, username: &str, userkey: &str) {
         let method = match body {
             Some(_) => "DHPOST",
             None => "DHGET",
@@ -403,13 +412,10 @@ impl DHP2P for UdpSocket {
             None => "",
         };
 
-        // random a 32-bit number
         let nonce = rand::random::<u32>();
-        // iso8601 time string
         let currdate = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let pwd = format!("{}{}DHP2P:{}:{}", nonce, currdate, USERNAME, USERKEY);
+        let pwd = format!("{}{}DHP2P:{}:{}", nonce, currdate, username, userkey);
 
-        // sha1 then base64
         let mut hasher = sha1::Sha1::new();
         hasher.update(pwd);
         let hash_digest = hasher.finalize();
@@ -422,7 +428,7 @@ impl DHP2P for UdpSocket {
             CSeq: {}\r\n\
             Authorization: WSSE profile=\"UsernameToken\"\r\n\
             X-WSSE: UsernameToken Username=\"{}\", PasswordDigest=\"{}\", Nonce=\"{}\", Created=\"{}\"\r\n\r\n{}",
-            method, path, seq, USERNAME, digest, nonce, currdate, body,
+            method, path, seq, username, digest, nonce, currdate, body,
         );
 
         println!(">>> {}", self.peer_addr().unwrap());

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "802e4a7e-c690-4330-9367-a993af072012",
+    "name": "test",
+    "brand": "Dahua",
+    "serial": "uiasigdusaduo",
+    "username": "admin",
+    "password": "",
+    "port": 554,
+    "local_port": 1554,
+    "main_server": "www.easy4ipcloud.com:8800",
+    "app_username": "cba1b29e32cb17aa46b8ff9e73c7f40b",
+    "app_userkey": "996103384cdf19179e19243e959bbf8b",
+    "auto_start": true
+  }
+]
